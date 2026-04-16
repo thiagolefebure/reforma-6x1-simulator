@@ -1,6 +1,6 @@
 """
 Simulador de Impacto — Reforma da Escala 6×1 no Brasil
-Desenvolvido com Streamlit + Plotly
+Desenvolvido com Streamlit + Plotly  |  v2.0 — dados reais PNAD + CAGED
 """
 
 import streamlit as st
@@ -15,6 +15,13 @@ from data.dados import (
     CENARIOS, SETORES, REGIOES, PORTES, ESTADOS_VULN,
     MATRIZ_IMPACTO, INTL, QA_ITEMS,
     monte_carlo, estimar_custo_pme,
+)
+from data.pipeline import (
+    carregar_dados,
+    distribuicao_horas_chart,
+    serie_emprego_chart,
+    rotatividade_por_setor,
+    vulnerabilidade_recalibrada,
 )
 
 # ── Configuração da página
@@ -91,9 +98,22 @@ with st.sidebar:
                       help="Mais iterações = maior precisão dos intervalos de confiança")
 
     st.divider()
-    st.caption("Dados: PNAD Contínua, RAIS/MTE, IBGE (2015–2023)")
+    atualizar_dados = st.button(
+        "Atualizar dados (PNAD + CAGED)",
+        use_container_width=True,
+        help="Força nova busca nas APIs do IBGE e MTE",
+    )
+    st.caption("Dados: PNAD Contínua (IBGE) + CAGED (MTE)")
     st.caption("Evidências internacionais: França, Islândia, Japão, Dinamarca, Alemanha")
 
+
+# ── Carregar dados reais (com cache automático e fallback)
+@st.cache_data(show_spinner=False, ttl=3600)
+def _carregar_dados_cached(force: bool = False):
+    return carregar_dados(force_refresh=force)
+
+with st.spinner("Carregando dados PNAD + CAGED..."):
+    dados = _carregar_dados_cached(force=atualizar_dados)
 
 # ── Executar Monte Carlo com os parâmetros selecionados
 @st.cache_data(show_spinner=False)
@@ -108,7 +128,7 @@ reg = REGIOES[regiao_sel]
 
 
 # ═══════════════════════════════════════════════════════════
-# CABEÇALHO
+# CABEÇALHO + BANNER DE FONTE
 # ═══════════════════════════════════════════════════════════
 st.markdown(f"""
 <h1 style="font-size:26px;font-weight:600;margin-bottom:4px">
@@ -120,17 +140,26 @@ st.markdown(f"""
   <span style="font-family:monospace">{n_sim:,} simulações Monte Carlo</span>
 </p>
 """, unsafe_allow_html=True)
+
+banner_msg, banner_tipo = dados.banner_fonte()
+if banner_tipo == "success":
+    st.success(f"Dados reais — {banner_msg}", icon="✅")
+else:
+    st.warning(f"{banner_msg}", icon="⚠️")
+
 st.divider()
 
 
 # ═══════════════════════════════════════════════════════════
 # TABS PRINCIPAIS
 # ═══════════════════════════════════════════════════════════
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📊 Indicadores",
     "🗺️ Análise Setorial e Regional",
     "🌍 Comparações Internacionais",
     "🏢 Calculadora PME",
+    "📡 Dados PNAD (real)",
+    "📈 Dinâmica CAGED (real)",
     "❓ Perguntas Guiadas",
 ])
 
@@ -531,9 +560,274 @@ with tab4:
 
 
 # ─────────────────────────────────────────────────────────
-# TAB 5 — PERGUNTAS GUIADAS
+# TAB 5 — DADOS REAIS PNAD
 # ─────────────────────────────────────────────────────────
 with tab5:
+    meta_pnad = dados.pnad["meta"]
+    st.markdown("#### Distribuição real de jornada — PNAD Contínua")
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric(
+        "Trabalhadores > 44h/semana",
+        f"{meta_pnad['pct_acima_44h']}%",
+        help="Candidatos a escala 6×1 ou similar",
+    )
+    c2.metric(
+        "Estimativa em escala 6×1",
+        f"{meta_pnad['total_6x1_estimado_mil'] / 1000:.1f} milhões",
+        help="Combinação PNAD + RAIS + pesquisas sindicais",
+    )
+    c3.metric(
+        "Informalidade nacional",
+        f"{meta_pnad['informalidade_nacional']:.1f}%",
+        help="Média ponderada por UF — PNAD 2023",
+    )
+
+    st.divider()
+    col_h, col_s = st.columns(2)
+
+    with col_h:
+        st.markdown("##### Distribuição de horas trabalhadas/semana")
+        df_horas = distribuicao_horas_chart(dados)
+        fig_h = go.Figure(go.Bar(
+            x=df_horas["faixa_horas"],
+            y=df_horas["pct_trabalhadores"],
+            marker_color=df_horas["cor"],
+            text=df_horas["pct_trabalhadores"].apply(lambda x: f"{x:.1f}%"),
+            textposition="outside",
+            hovertemplate="%{x}<br>%{y:.1f}% dos trabalhadores<extra></extra>",
+        ))
+        fig_h.add_annotation(
+            x="45 a 48h", y=df_horas[df_horas["faixa_horas"] == "45 a 48h"]["pct_trabalhadores"].values[0] + 3,
+            text="Provável 6×1", showarrow=False,
+            font=dict(color="#D85A30", size=11),
+        )
+        fig_h.update_layout(
+            height=300,
+            margin=dict(l=0, r=0, t=20, b=40),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            showlegend=False,
+            yaxis_title="% trabalhadores",
+        )
+        fig_h.update_xaxes(showgrid=False)
+        fig_h.update_yaxes(showgrid=True, gridcolor="#eee", range=[0, 50])
+        st.plotly_chart(fig_h, use_container_width=True)
+        st.caption(f"Fonte: {meta_pnad['fontes']['horas']}")
+
+    with col_s:
+        st.markdown("##### Trabalhadores formais por setor (milhões)")
+        df_set = dados.pnad["setores"].sort_values("ocupados_mil", ascending=True)
+        fig_s = go.Figure(go.Bar(
+            x=df_set["ocupados_mil"] / 1000,
+            y=df_set["setor"],
+            orientation="h",
+            marker_color="#185FA5",
+            opacity=0.75,
+            text=(df_set["ocupados_mil"] / 1000).apply(lambda x: f"{x:.1f}M"),
+            textposition="outside",
+            customdata=df_set["pct_informal"],
+            hovertemplate="%{y}<br>%{x:.1f} milhões<br>Informalidade: %{customdata:.1f}%<extra></extra>",
+        ))
+        fig_s.update_layout(
+            height=300,
+            margin=dict(l=0, r=80, t=10, b=30),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            xaxis_title="Ocupados (milhões)",
+        )
+        fig_s.update_xaxes(showgrid=True, gridcolor="#eee")
+        fig_s.update_yaxes(showgrid=False, tickfont=dict(size=11))
+        st.plotly_chart(fig_s, use_container_width=True)
+        st.caption(f"Fonte: {meta_pnad['fontes']['setores']}")
+
+    st.divider()
+    st.markdown("##### Informalidade e renda média por UF")
+    df_uf = dados.pnad["ufs"].sort_values("pct_informal", ascending=False)
+    fig_uf = go.Figure()
+    fig_uf.add_trace(go.Bar(
+        x=df_uf["uf"], y=df_uf["pct_informal"],
+        name="Informalidade (%)", marker_color="#D85A30", opacity=0.8,
+        yaxis="y",
+    ))
+    fig_uf.add_trace(go.Scatter(
+        x=df_uf["uf"], y=df_uf["renda_media"],
+        name="Renda média (R$)", mode="lines+markers",
+        marker=dict(color="#185FA5", size=5),
+        line=dict(color="#185FA5", width=1.5),
+        yaxis="y2",
+    ))
+    fig_uf.update_layout(
+        yaxis=dict(title="Informalidade (%)", showgrid=True, gridcolor="#eee"),
+        yaxis2=dict(title="Renda média (R$)", overlaying="y", side="right", showgrid=False),
+        height=300,
+        margin=dict(l=0, r=0, t=10, b=40),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+    )
+    st.plotly_chart(fig_uf, use_container_width=True)
+    st.caption(f"Fonte: {meta_pnad['fontes']['ufs']} · Ordenado por taxa de informalidade decrescente.")
+
+    st.divider()
+    st.markdown("##### Vulnerabilidade recalibrada com dados reais")
+    df_vuln = vulnerabilidade_recalibrada(dados)
+    st.dataframe(
+        df_vuln.rename(columns={
+            "setor": "Setor",
+            "vulnerabilidade": "Índice (0–10)",
+            "pct_informal": "Informalidade real (%)",
+            "rotatividade_pct": "Rotatividade CAGED (%)",
+            "prop_6x1": "Proporção 6×1 estimada",
+        }).style.background_gradient(subset=["Índice (0–10)"], cmap="RdYlGn_r"),
+        use_container_width=True,
+        hide_index=True,
+    )
+    st.caption("Índice composto: informalidade real (40%) + rotatividade CAGED (25%) + proporção 6×1 estimada (35%).")
+
+
+# ─────────────────────────────────────────────────────────
+# TAB 6 — DINÂMICA CAGED
+# ─────────────────────────────────────────────────────────
+with tab6:
+    meta_caged = dados.caged["meta"]
+    st.markdown("#### Dinâmica do emprego formal — Novo CAGED (MTE)")
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric(
+        "Saldo médio mensal (12m)",
+        f"+{meta_caged['saldo_medio_12m_mil']:.0f} mil",
+        help="Admissões − demissões, média dos últimos 12 meses",
+    )
+    c2.metric("Setor com maior saldo", meta_caged["melhor_setor"])
+    c3.metric("Setor com menor saldo", meta_caged["pior_setor"])
+
+    st.divider()
+    st.markdown("##### Série temporal — saldo mensal de empregos formais")
+    df_serie = serie_emprego_chart(dados)
+    fig_serie = go.Figure()
+    fig_serie.add_trace(go.Bar(
+        x=df_serie["periodo_dt"],
+        y=df_serie["saldo_mil"],
+        name="Saldo mensal",
+        marker_color=df_serie["saldo_mil"].apply(lambda x: "#3B6D11" if x >= 0 else "#D85A30"),
+        opacity=0.7,
+    ))
+    fig_serie.add_trace(go.Scatter(
+        x=df_serie["periodo_dt"],
+        y=df_serie["media_movel_3m"],
+        name="Média móvel 3m",
+        mode="lines",
+        line=dict(color="#185FA5", width=2),
+    ))
+    fig_serie.add_hline(y=0, line_dash="dash", line_color="#999", line_width=1)
+    fig_serie.update_layout(
+        yaxis_title="Saldo (mil empregos)",
+        height=300,
+        margin=dict(l=0, r=0, t=10, b=30),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+    )
+    fig_serie.update_xaxes(showgrid=True, gridcolor="#eee")
+    fig_serie.update_yaxes(showgrid=True, gridcolor="#eee")
+    st.plotly_chart(fig_serie, use_container_width=True)
+    st.caption(f"Fonte: {meta_caged['fontes']['serie']}")
+
+    st.divider()
+    col_set, col_reg = st.columns(2)
+
+    with col_set:
+        st.markdown("##### Saldo médio mensal por setor")
+        df_rot = rotatividade_por_setor(dados).sort_values("saldo_medio_mensal", ascending=True)
+        fig_set = go.Figure(go.Bar(
+            x=df_rot["saldo_medio_mensal"],
+            y=df_rot["setor"],
+            orientation="h",
+            marker_color=df_rot["saldo_medio_mensal"].apply(lambda x: "#3B6D11" if x >= 0 else "#D85A30"),
+            text=df_rot["saldo_medio_mensal"].apply(lambda x: f"{x:+.1f}k"),
+            textposition="outside",
+            customdata=df_rot["rotatividade_pct"],
+            hovertemplate="%{y}<br>Saldo: %{x:.1f}k/mês<br>Rotatividade: %{customdata:.1f}%<extra></extra>",
+        ))
+        fig_set.add_vline(x=0, line_color="#999", line_width=1)
+        fig_set.update_layout(
+            height=320,
+            margin=dict(l=0, r=60, t=10, b=30),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            xaxis_title="Saldo médio mensal (mil)",
+        )
+        fig_set.update_xaxes(showgrid=True, gridcolor="#eee")
+        fig_set.update_yaxes(showgrid=False, tickfont=dict(size=11))
+        st.plotly_chart(fig_set, use_container_width=True)
+
+    with col_reg:
+        st.markdown("##### Saldo e informalidade por região")
+        df_reg = dados.caged["por_regiao"].sort_values("saldo_medio_mensal", ascending=True)
+        fig_reg = go.Figure()
+        fig_reg.add_trace(go.Bar(
+            x=df_reg["saldo_medio_mensal"],
+            y=df_reg["regiao"],
+            orientation="h",
+            name="Saldo médio (mil)",
+            marker_color="#185FA5",
+            opacity=0.8,
+        ))
+        fig_reg.update_layout(
+            height=240,
+            margin=dict(l=0, r=20, t=10, b=30),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            xaxis_title="Saldo médio mensal (mil)",
+        )
+        fig_reg.update_xaxes(showgrid=True, gridcolor="#eee")
+        fig_reg.update_yaxes(showgrid=False)
+        st.plotly_chart(fig_reg, use_container_width=True)
+
+    st.divider()
+    st.markdown("##### Rotatividade por setor — contexto para o impacto da reforma")
+    df_rot_full = rotatividade_por_setor(dados)
+    st.dataframe(
+        df_rot_full[["setor", "admissoes_med", "demissoes_med", "saldo_medio_mensal", "rotatividade_pct", "tendencia_12m"]]
+        .rename(columns={
+            "setor": "Setor",
+            "admissoes_med": "Admissões/mês (mil)",
+            "demissoes_med": "Demissões/mês (mil)",
+            "saldo_medio_mensal": "Saldo médio (mil)",
+            "rotatividade_pct": "Rotatividade (%)",
+            "tendencia_12m": "Tendência 12m (pp)",
+        })
+        .style.background_gradient(subset=["Rotatividade (%)"], cmap="YlOrRd")
+               .background_gradient(subset=["Saldo médio (mil)"], cmap="RdYlGn"),
+        use_container_width=True,
+        hide_index=True,
+    )
+    st.caption(
+        f"Fonte: {meta_caged['fontes']['setores']} · "
+        "Tendência = variação em pontos percentuais no saldo médio nos últimos 12 meses. "
+        "Alta rotatividade = maior exposição a demissões no contexto da reforma."
+    )
+    st.divider()
+    st.markdown("##### Upload de CSV CAGED (opcional)")
+    st.caption("Baixe o arquivo mais recente em [dadosabertos.mte.gov.br](https://dadosabertos.mte.gov.br) e faça upload aqui para atualizar a série.")
+    uploaded = st.file_uploader("Arquivo CSV do CAGED (separador ';', encoding latin-1)", type=["csv"])
+    if uploaded:
+        import tempfile, os as _os
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
+            tmp.write(uploaded.read())
+            tmp_path = tmp.name
+        from data.caged_api import carregar_csv_manual
+        df_upload, fonte_upload = carregar_csv_manual(tmp_path)
+        _os.unlink(tmp_path)
+        st.success(f"Arquivo carregado — {fonte_upload} — {len(df_upload)} linhas")
+        st.dataframe(df_upload.head(20), use_container_width=True)
+
+
+# ─────────────────────────────────────────────────────────
+# TAB 7 — PERGUNTAS GUIADAS
+# ─────────────────────────────────────────────────────────
+with tab7:
     st.markdown("#### Framework de perguntas guiadas")
     st.caption("Explore as principais variáveis e seus efeitos esperados com base nos modelos.")
 
@@ -560,8 +854,8 @@ with tab5:
 - Diferenças intra-estaduais (capital vs. interior) não são capturadas no nível regional
 
 **Fontes de dados:**
-- PNAD Contínua (IBGE) 2015–2023
-- RAIS / CAGED (MTE) 2015–2023
+- PNAD Contínua (IBGE) — via API SIDRA ou fallback embutido calibrado em 2023
+- Novo CAGED (MTE) — via API dados abertos ou fallback embutido 2022–2024
 - Evidências internacionais: OCDE, ILO, estudos publicados sobre França, Islândia, Japão, Alemanha e Dinamarca
         """)
 
@@ -570,9 +864,10 @@ with tab5:
 # RODAPÉ
 # ─────────────────────────────────────────────────────────
 st.divider()
-st.markdown("""
+fontes_str = " · ".join(set(dados.fontes.values()))
+st.markdown(f"""
 <div style="font-size:12px;color:#999;text-align:center;padding:8px 0">
-  Simulador Reforma 6×1 · Fins analíticos e educacionais ·
-  Dados: PNAD Contínua, RAIS/MTE, IBGE · Evidências: OCDE, ILO
+  Simulador Reforma 6×1 v2.0 · Fins analíticos e educacionais ·
+  Fontes ativas: {fontes_str}
 </div>
 """, unsafe_allow_html=True)

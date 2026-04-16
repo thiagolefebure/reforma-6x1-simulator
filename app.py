@@ -678,6 +678,16 @@ with tab5:
     st.divider()
     st.markdown("##### Vulnerabilidade recalibrada com dados reais")
     df_vuln = vulnerabilidade_recalibrada(dados)
+
+    def _cor_vuln(val):
+        try:
+            v = float(val)
+            if v >= 7.5:   return "background-color:#FAECE7;color:#712B13;font-weight:600"
+            elif v >= 5.0: return "background-color:#FAEEDA;color:#633806;font-weight:600"
+            else:           return "background-color:#EAF3DE;color:#27500A;font-weight:600"
+        except (TypeError, ValueError):
+            return ""
+
     st.dataframe(
         df_vuln.rename(columns={
             "setor": "Setor",
@@ -685,7 +695,7 @@ with tab5:
             "pct_informal": "Informalidade real (%)",
             "rotatividade_pct": "Rotatividade CAGED (%)",
             "prop_6x1": "Proporção 6×1 estimada",
-        }).style.background_gradient(subset=["Índice (0–10)"], cmap="RdYlGn_r"),
+        }).style.map(_cor_vuln, subset=["Índice (0–10)"]),
         use_container_width=True,
         hide_index=True,
     )
@@ -794,6 +804,24 @@ with tab6:
     st.divider()
     st.markdown("##### Rotatividade por setor — contexto para o impacto da reforma")
     df_rot_full = rotatividade_por_setor(dados)
+    def _cor_rot(val):
+        try:
+            v = float(val)
+            if v >= 55:    return "background-color:#FAECE7;color:#712B13;font-weight:600"
+            elif v >= 45:  return "background-color:#FAEEDA;color:#633806"
+            else:           return "background-color:#EAF3DE;color:#27500A"
+        except (TypeError, ValueError):
+            return ""
+
+    def _cor_saldo(val):
+        try:
+            v = float(val)
+            if v >= 20:    return "background-color:#EAF3DE;color:#27500A;font-weight:600"
+            elif v >= 0:   return "background-color:#FAEEDA;color:#633806"
+            else:           return "background-color:#FAECE7;color:#712B13"
+        except (TypeError, ValueError):
+            return ""
+
     st.dataframe(
         df_rot_full[["setor", "admissoes_med", "demissoes_med", "saldo_medio_mensal", "rotatividade_pct", "tendencia_12m"]]
         .rename(columns={
@@ -804,8 +832,8 @@ with tab6:
             "rotatividade_pct": "Rotatividade (%)",
             "tendencia_12m": "Tendência 12m (pp)",
         })
-        .style.background_gradient(subset=["Rotatividade (%)"], cmap="YlOrRd")
-               .background_gradient(subset=["Saldo médio (mil)"], cmap="RdYlGn"),
+        .style.map(_cor_rot, subset=["Rotatividade (%)"])
+               .map(_cor_saldo, subset=["Saldo médio (mil)"]),
         use_container_width=True,
         hide_index=True,
     )

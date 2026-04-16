@@ -422,7 +422,7 @@ with tab2:
     styled = df_matriz.rename(columns={
         "setor": "Setor", "mei": "MEI / Micro", "pme": "PME",
         "grande": "Grande empresa", "workers": "Trabalhadores 6×1", "inform": "Risco informalização"
-    }).style.applymap(colorir_cel, subset=["MEI / Micro", "PME", "Grande empresa", "Risco informalização"])
+    }).style.map(colorir_cel, subset=["MEI / Micro", "PME", "Grande empresa", "Risco informalização"])
     st.dataframe(styled, use_container_width=True, hide_index=True)
 
 

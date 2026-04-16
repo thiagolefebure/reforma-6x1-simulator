@@ -3,10 +3,25 @@
 
 > Ferramenta interativa de simulação econômica e análise de cenários para estimar os impactos macroeconômicos, setoriais e regionais de uma eventual transição da escala de trabalho 6×1 para modelos alternativos de organização do tempo de trabalho no Brasil.
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://SEU_USUARIO-reforma-6x1-simulator.streamlit.app)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://reforma-6x1-simulator.streamlit.app)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-v2.0%20active-brightgreen)
+
+**[→ Acessar o app](https://reforma-6x1-simulator.streamlit.app)**
+
+---
+
+## Screenshots
+
+**Indicadores principais — Monte Carlo com IC 80%**
+![Indicadores](assets/screenshot_01_indicadores.png)
+
+**Vulnerabilidade setorial, exposição regional e mapa por estado**
+![Análise Setorial e Regional](assets/screenshot_02_setorial.png)
+
+**Calculadora de impacto para empresas**
+![Calculadora PME](assets/screenshot_03_pme.png)
 
 ---
 
@@ -58,10 +73,10 @@ O sistema é estruturado em quatro camadas:
 | Módulo | Conteúdo |
 |---|---|
 | **Indicadores** | Métricas principais com IC 80%, histograma Monte Carlo, comparativo entre cenários |
-| **Análise Setorial e Regional** | Índice de Vulnerabilidade à Transição por setor, mapa choropleth por UF, matriz de impacto setor × porte |
-| **Comparações Internacionais** | Painéis França / Islândia / Japão / Dinamarca / Alemanha + scatter OCDE horas × produtividade |
+| **Análise Setorial e Regional** | LTVI por setor, mapa choropleth por UF, matriz de impacto setor × porte |
+| **Comparações Internacionais** | França / Islândia / Japão / Dinamarca / Alemanha + scatter OCDE horas × produtividade |
 | **Calculadora PME** | Custo adicional mensal, contratações necessárias e impacto acumulado por perfil de empresa |
-| **Dados PNAD (real)** | Distribuição real de horas trabalhadas, informalidade por UF, vulnerabilidade recalibrada com dados observados |
+| **Dados PNAD (real)** | Distribuição de horas, informalidade por UF, vulnerabilidade recalibrada com dados observados |
 | **Dinâmica CAGED (real)** | Série temporal de saldo de empregos, rotatividade setorial, upload de CSV manual |
 | **Perguntas Guiadas** | Framework Q&A com hipóteses declaradas e limitações explícitas do modelo |
 
@@ -69,7 +84,7 @@ O sistema é estruturado em quatro camadas:
 
 ## Labor Transition Vulnerability Index (LTVI)
 
-Um dos ativos centrais do projeto é o **LTVI** — índice composto que combina três dimensões observadas para medir a exposição de cada setor ao choque da transição:
+Um dos ativos centrais do projeto é o **LTVI** — índice composto que mede a exposição de cada setor ao choque da transição:
 
 ```
 LTVI = 0,40 × informalidade_real
@@ -82,7 +97,7 @@ Os pesos foram calibrados com base na literatura empírica sobre sensibilidade d
 | Faixa LTVI | Interpretação |
 |---|---|
 | 7,5 – 10,0 | Alta vulnerabilidade — risco elevado de informalização e perda de postos formais |
-| 5,0 – 7,4 | Vulnerabilidade moderada — impacto significativo, absorvível com transição gradual |
+| 5,0 – 7,4 | Vulnerabilidade moderada — absorvível com transição gradual |
 | 0,0 – 4,9 | Baixa vulnerabilidade — maior capacidade de absorção do choque |
 
 ---
@@ -163,7 +178,7 @@ for each (scenario, sector, region, firm_size):
 ## Instalação local
 
 ```bash
-git clone https://github.com/SEU_USUARIO/reforma-6x1-simulator.git
+git clone https://github.com/thiagolefebure/reforma-6x1-simulator.git
 cd reforma-6x1-simulator
 pip install -r requirements.txt
 streamlit run app.py
@@ -188,6 +203,7 @@ streamlit run app.py
 ```
 reforma-6x1-simulator/
 ├── app.py                  ← Interface Streamlit (7 módulos)
+├── assets/                 ← Screenshots para o README
 ├── data/
 │   ├── dados.py            ← Parâmetros do modelo, cenários, fallback embutido
 │   ├── pnad_api.py         ← Fetcher SIDRA/IBGE com cache Parquet e fallback
@@ -230,7 +246,7 @@ reforma-6x1-simulator/
 @software{reforma6x1_simulator_2024,
   title  = {Brazil Labor Transition Simulator},
   year   = {2024},
-  url    = {https://github.com/SEU_USUARIO/reforma-6x1-simulator},
+  url    = {https://reforma-6x1-simulator.streamlit.app},
   note   = {Ferramenta interativa de simulação econômica para análise
             do impacto da reforma da jornada 6x1 no Brasil.
             Dados: PNAD Contínua (IBGE), Novo CAGED (MTE).}

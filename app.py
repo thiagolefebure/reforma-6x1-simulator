@@ -533,6 +533,12 @@ with tab4:
     custo_acum_lo = [custo_anual_lo * min(a, horizonte) / horizonte * a for a in anos]
     custo_acum_hi = [custo_anual_hi * min(a, horizonte) / horizonte * a for a in anos]
 
+    # Converte hex para rgba para compatibilidade com Plotly moderno
+    def hex_to_rgba(hex_color: str, alpha: float = 0.25) -> str:
+        h = hex_color.lstrip("#")
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        return f"rgba({r},{g},{b},{alpha})"
+
     fig_acum = go.Figure()
     fig_acum.add_trace(go.Scatter(
         x=anos, y=custo_acum_hi,
@@ -540,8 +546,8 @@ with tab4:
     ))
     fig_acum.add_trace(go.Scatter(
         x=anos, y=custo_acum_lo,
-        fill="tonexty", line_color=cor_scn, opacity=0.3,
-        fillcolor=cor_scn + "33", name="Limite inferior",
+        fill="tonexty", line_color=cor_scn,
+        fillcolor=hex_to_rgba(cor_scn, 0.20), name="Limite inferior",
     ))
     fig_acum.update_layout(
         xaxis_title="Ano de transição",

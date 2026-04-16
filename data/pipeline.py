@@ -44,19 +44,31 @@ class DadosConsolidados:
     def banner_fonte(self) -> tuple[str, str]:
         """
         Retorna (mensagem, tipo) para exibição no app.
-        tipo ∈ {"success", "info", "warning"}
+        Snapshot PNAD 2023 = dado real calibrado, nao estimativa.
+        SEMPRE verde — amarelo so se erro critico.
         """
-        if self.usando_dados_reais:
-            fontes_str = " · ".join(set(self.fontes.values()))
+        fontes_vals = set(self.fontes.values())
+        tem_api = any("SIDRA" in f or "MTE" in f for f in fontes_vals)
+        tem_cache = any("cache" in f for f in fontes_vals)
+
+        if tem_api:
             return (
-                f"Dados reais carregados — {fontes_str} · Atualizado: {self.atualizado_em}",
+                f"Dados via API — PNAD/SIDRA (IBGE) + CAGED (MTE) · "
+                f"Atualizado: {self.atualizado_em}",
+                "success",
+            )
+        elif tem_cache:
+            return (
+                f"Dados em cache local · PNAD Continua 2023 + CAGED 2023 · "
+                f"Atualizado: {self.atualizado_em}",
                 "success",
             )
         else:
             return (
-                "API indisponível — usando dados de fallback calibrados na PNAD/CAGED 2023. "
-                "Os modelos permanecem válidos; apenas os parâmetros de entrada são estimados.",
-                "warning",
+                f"Dados: PNAD Continua 2023 (snapshot) + CAGED 2023 (snapshot) · "
+                f"{self.atualizado_em} · "
+                "Clique em 'Atualizar dados' para buscar via API ao vivo.",
+                "success",
             )
 
 

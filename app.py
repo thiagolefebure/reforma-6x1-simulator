@@ -143,9 +143,11 @@ st.markdown(f"""
 
 banner_msg, banner_tipo = dados.banner_fonte()
 if banner_tipo == "success":
-    st.success(f"Dados reais — {banner_msg}", icon="✅")
+    st.success(banner_msg, icon="✅")
+elif banner_tipo == "info":
+    st.info(banner_msg, icon="ℹ️")
 else:
-    st.warning(f"{banner_msg}", icon="⚠️")
+    st.warning(banner_msg, icon="⚠️")
 
 st.divider()
 
